@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
 import chromadb
-from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "mock_docs"
 VECTORSTORE_DIR = Path(__file__).resolve().parent.parent / "vectorstore"
@@ -39,11 +38,15 @@ def load_and_chunk_docs() -> list[dict]:
 
 
 def get_collection(client: chromadb.ClientAPI | None = None, embedding_function=None):
+    """Get (or create) the company-docs collection.
+
+    Embeddings run on a free local model (chromadb's default all-MiniLM-L6-v2,
+    via onnxruntime) rather than a paid API, so retrieval never depends on
+    a provider's billing status. It downloads once to ~/.cache/chroma on
+    first use and runs fully offline after that.
+    """
     client = client or chromadb.PersistentClient(path=str(VECTORSTORE_DIR))
-    embedding_function = embedding_function or OpenAIEmbeddingFunction(
-        api_key=os.environ.get("OPENAI_API_KEY"),
-        model_name="text-embedding-3-small",
-    )
+    embedding_function = embedding_function or DefaultEmbeddingFunction()
     return client.get_or_create_collection(
         name=COLLECTION_NAME, embedding_function=embedding_function
     )

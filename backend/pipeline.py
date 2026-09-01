@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from agents.crew import build_onboarding_crew  # noqa: E402
+from agents.crew import kickoff_with_fallback  # noqa: E402
 from decision.engine import DecisionResult, decide_onboarding_track  # noqa: E402
 from rag.ingest import build_vectorstore  # noqa: E402
 
@@ -47,8 +47,7 @@ def run_onboarding(hire: dict) -> OnboardingResult:
 
     decision = decide_onboarding_track(hire)
 
-    crew = build_onboarding_crew(hire, decision)
-    crew_output = crew.kickoff()
+    crew_output = kickoff_with_fallback(hire, decision)
 
     task_outputs = crew_output.tasks_output
     research_notes = str(task_outputs[1].raw)
