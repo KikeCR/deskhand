@@ -8,6 +8,24 @@ export class ApiError extends Error {}
 // the backend's absolute URL (e.g. https://deskhand-api.onrender.com).
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
+/**
+ * Pings /api/health with a generous timeout, so callers can tell "backend
+ * is genuinely down" apart from "backend is asleep on a free-tier host and
+ * waking up" before claiming a run will take its usual 15-40 seconds.
+ */
+export async function checkHealth(timeoutMs = 60_000): Promise<boolean> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/health`, { signal: controller.signal })
+    return res.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function fetchSampleHires(): Promise<HireProfile[]> {
   const res = await fetch(`${API_BASE_URL}/api/sample-hires`)
   if (!res.ok) throw new ApiError('Failed to load sample hires')

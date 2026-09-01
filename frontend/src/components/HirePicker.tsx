@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Buildings, CaretDown, House, UserCircle } from '@phosphor-icons/react'
 import { fetchSampleHires } from '../api/client'
 import type { HireProfile } from '../api/types'
+import type { BackendStatus } from '../hooks/useBackendStatus'
+import { BackendStatusPill } from './BackendStatusPill'
 import { Button } from './ui/Button'
 import { Card, CardContent } from './ui/Card'
 import { DatePicker } from './ui/DatePicker'
@@ -20,9 +22,11 @@ const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 interface HirePickerProps {
   onRun: (hire: HireProfile) => void
   isRunning: boolean
+  backendStatus: BackendStatus
+  onRetryBackend: () => void
 }
 
-export function HirePicker({ onRun, isRunning }: HirePickerProps) {
+export function HirePicker({ onRun, isRunning, backendStatus, onRetryBackend }: HirePickerProps) {
   const [sampleHires, setSampleHires] = useState<HireProfile[]>([])
   const [loadError, setLoadError] = useState(false)
   const [selectedName, setSelectedName] = useState<string | 'custom' | null>(null)
@@ -52,7 +56,8 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
     customHire.role.trim().length > 0 &&
     customHire.department.trim().length > 0 &&
     ISO_DATE_PATTERN.test(customHire.start_date)
-  const canRun = selectedName === 'custom' ? isCustomValid : selectedHire !== null
+  const canRun =
+    backendStatus === 'online' && (selectedName === 'custom' ? isCustomValid : selectedHire !== null)
 
   return (
     <Card>
@@ -169,11 +174,17 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
           </div>
         )}
 
+        <BackendStatusPill status={backendStatus} onRetry={onRetryBackend} />
+
         <Button
           disabled={!canRun || isRunning}
           onClick={() => selectedHire && onRun(selectedHire)}
         >
-          {isRunning ? 'Running the crew...' : 'Run onboarding'}
+          {isRunning
+            ? 'Running the crew...'
+            : backendStatus !== 'online'
+              ? 'Waiting for backend...'
+              : 'Run onboarding'}
         </Button>
       </CardContent>
     </Card>

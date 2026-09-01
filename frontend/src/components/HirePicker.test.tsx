@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { HirePicker } from './HirePicker'
 import * as apiClient from '../api/client'
 import type { HireProfile } from '../api/types'
+import type { BackendStatus } from '../hooks/useBackendStatus'
 
 vi.mock('./ui/DatePicker', () => ({
   // HirePicker's own tests care about form orchestration, not calendar
@@ -31,13 +32,29 @@ const sampleHires: HireProfile[] = [
   },
 ]
 
+function renderHirePicker(overrides: {
+  onRun?: (hire: HireProfile) => void
+  isRunning?: boolean
+  backendStatus?: BackendStatus
+  onRetryBackend?: () => void
+} = {}) {
+  return render(
+    <HirePicker
+      onRun={overrides.onRun ?? vi.fn()}
+      isRunning={overrides.isRunning ?? false}
+      backendStatus={overrides.backendStatus ?? 'online'}
+      onRetryBackend={overrides.onRetryBackend ?? vi.fn()}
+    />,
+  )
+}
+
 describe('HirePicker', () => {
   it('lists the bundled sample hires and runs the selected one', async () => {
     vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
     const onRun = vi.fn()
     const user = userEvent.setup()
 
-    render(<HirePicker onRun={onRun} isRunning={false} />)
+    renderHirePicker({ onRun })
 
     await screen.findByText('Priya Nakamura')
     await user.click(screen.getByText('Marcus Delgado'))
@@ -50,7 +67,7 @@ describe('HirePicker', () => {
     vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
     const user = userEvent.setup()
 
-    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+    renderHirePicker()
 
     await screen.findByText('Priya Nakamura')
     await user.click(screen.getByText('Custom hire'))
@@ -63,7 +80,7 @@ describe('HirePicker', () => {
     const onRun = vi.fn()
     const user = userEvent.setup()
 
-    render(<HirePicker onRun={onRun} isRunning={false} />)
+    renderHirePicker({ onRun })
 
     await screen.findByText('Priya Nakamura')
     await user.click(screen.getByText('Custom hire'))
@@ -90,7 +107,7 @@ describe('HirePicker', () => {
     vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
     const user = userEvent.setup()
 
-    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+    renderHirePicker()
 
     await screen.findByText('Priya Nakamura')
     await user.click(screen.getByText('Custom hire'))
@@ -106,7 +123,7 @@ describe('HirePicker', () => {
   it('shows an error message when sample hires fail to load', async () => {
     vi.spyOn(apiClient, 'fetchSampleHires').mockRejectedValue(new Error('network error'))
 
-    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+    renderHirePicker()
 
     expect(await screen.findByText(/could not load sample hires/i)).toBeInTheDocument()
   })
@@ -117,12 +134,48 @@ describe('HirePicker', () => {
     fetchSpy.mockResolvedValueOnce(sampleHires)
     const user = userEvent.setup()
 
-    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+    renderHirePicker()
 
     await screen.findByText(/could not load sample hires/i)
     await user.click(screen.getByRole('button', { name: /retry/i }))
 
     await screen.findByText('Priya Nakamura')
     expect(screen.queryByText(/could not load sample hires/i)).not.toBeInTheDocument()
+  })
+
+  it('disables the run button while the backend status is checking', async () => {
+    vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
+
+    renderHirePicker({ backendStatus: 'checking' })
+
+    await screen.findByText('Priya Nakamura')
+    expect(screen.getByRole('button', { name: /waiting for backend/i })).toBeDisabled()
+  })
+
+  it('disables the run button and offers a retry when the backend is offline', async () => {
+    vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
+    const onRetryBackend = vi.fn()
+    const user = userEvent.setup()
+
+    renderHirePicker({ backendStatus: 'offline', onRetryBackend })
+
+    await screen.findByText('Priya Nakamura')
+    expect(screen.getByRole('button', { name: /waiting for backend/i })).toBeDisabled()
+    expect(screen.getByText(/backend unreachable/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^retry$/i }))
+    expect(onRetryBackend).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the run button disabled even for a fully valid hire when the backend is offline', async () => {
+    vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
+    const user = userEvent.setup()
+
+    renderHirePicker({ backendStatus: 'offline' })
+
+    await screen.findByText('Priya Nakamura')
+    await user.click(screen.getByText('Priya Nakamura'))
+
+    expect(screen.getByRole('button', { name: /waiting for backend/i })).toBeDisabled()
   })
 })

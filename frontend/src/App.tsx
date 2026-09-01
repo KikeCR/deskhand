@@ -6,6 +6,7 @@ import { Footer } from './components/Footer'
 import { HirePicker } from './components/HirePicker'
 import { Logo } from './components/Logo'
 import { ResultsPanel, type ResultsState } from './components/ResultsPanel'
+import { useBackendStatus } from './hooks/useBackendStatus'
 
 const PIPELINE = [
   { icon: ClipboardText, label: 'Intake' },
@@ -16,6 +17,7 @@ const PIPELINE = [
 function App() {
   const [state, setState] = useState<ResultsState>({ status: 'idle' })
   const [lastHire, setLastHire] = useState<HireProfile | null>(null)
+  const { status: backendStatus, recheck: recheckBackend } = useBackendStatus()
 
   async function handleRun(hire: HireProfile) {
     setLastHire(hire)
@@ -60,7 +62,12 @@ function App() {
 
       <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-start gap-6 px-6 py-8 md:grid-cols-[360px_1fr]">
         <div className="md:sticky md:top-8 md:self-start">
-          <HirePicker onRun={handleRun} isRunning={state.status === 'loading'} />
+          <HirePicker
+            onRun={handleRun}
+            isRunning={state.status === 'loading'}
+            backendStatus={backendStatus}
+            onRetryBackend={recheckBackend}
+          />
         </div>
         <ResultsPanel state={state} onRetry={lastHire ? () => handleRun(lastHire) : undefined} />
       </main>

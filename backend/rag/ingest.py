@@ -12,6 +12,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "mock_docs"
 VECTORSTORE_DIR = Path(__file__).resolve().parent.parent / "vectorstore"
 COLLECTION_NAME = "company_docs"
 
+_cached_collection = None
+
 
 def chunk_markdown(text: str, source: str) -> list[dict]:
     """Split a markdown doc into chunks along its "## " section headers.
@@ -44,12 +46,32 @@ def get_collection(client: chromadb.ClientAPI | None = None, embedding_function=
     via onnxruntime) rather than a paid API, so retrieval never depends on
     a provider's billing status. It downloads once to ~/.cache/chroma on
     first use and runs fully offline after that.
+
+    With no explicit client/embedding_function (the production call shape,
+    used on every request via build_vectorstore()), the collection is built
+    once per process and cached, rather than reconstructing a new Chroma
+    client and a new onnxruntime embedding session on every single request.
+    The latter was measured to grow memory per request under load, enough
+    to exceed a 512MB container's limit and trigger repeated restarts.
+    Tests that pass an explicit client/embedding_function (a tmp_path client,
+    a fake embedding function) bypass the cache entirely, so the offline
+    test suite is unaffected.
     """
-    client = client or chromadb.PersistentClient(path=str(VECTORSTORE_DIR))
-    embedding_function = embedding_function or DefaultEmbeddingFunction()
-    return client.get_or_create_collection(
-        name=COLLECTION_NAME, embedding_function=embedding_function
-    )
+    global _cached_collection
+
+    if client is not None or embedding_function is not None:
+        client = client or chromadb.PersistentClient(path=str(VECTORSTORE_DIR))
+        embedding_function = embedding_function or DefaultEmbeddingFunction()
+        return client.get_or_create_collection(
+            name=COLLECTION_NAME, embedding_function=embedding_function
+        )
+
+    if _cached_collection is None:
+        client = chromadb.PersistentClient(path=str(VECTORSTORE_DIR))
+        _cached_collection = client.get_or_create_collection(
+            name=COLLECTION_NAME, embedding_function=DefaultEmbeddingFunction()
+        )
+    return _cached_collection
 
 
 def build_vectorstore(

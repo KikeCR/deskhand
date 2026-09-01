@@ -1,4 +1,7 @@
-from rag.ingest import build_vectorstore, chunk_markdown, load_and_chunk_docs
+from unittest.mock import MagicMock
+
+import rag.ingest as ingest_module
+from rag.ingest import build_vectorstore, chunk_markdown, get_collection, load_and_chunk_docs
 
 
 def test_chunk_markdown_splits_on_h2_headers():
@@ -36,6 +39,45 @@ def test_load_and_chunk_docs_covers_all_mock_docs():
         "remote_work_policy.md",
     }
     assert len(chunks) > 4
+
+
+def test_get_collection_caches_expensive_objects_across_calls(monkeypatch):
+    """Regression test: get_collection() used to build a brand new Chroma
+    client + onnxruntime embedding session on every call (i.e. on every
+    request), which grew memory enough to exceed a 512MB container and
+    trigger repeated restarts in production. With no explicit
+    client/embedding_function, both should be constructed exactly once.
+    """
+    monkeypatch.setattr(ingest_module, "_cached_collection", None)
+
+    fake_collection = object()
+    fake_client = MagicMock()
+    fake_client.get_or_create_collection.return_value = fake_collection
+    fake_client_cls = MagicMock(return_value=fake_client)
+    fake_embedding_fn_cls = MagicMock()
+
+    monkeypatch.setattr(ingest_module.chromadb, "PersistentClient", fake_client_cls)
+    monkeypatch.setattr(ingest_module, "DefaultEmbeddingFunction", fake_embedding_fn_cls)
+
+    first = get_collection()
+    second = get_collection()
+    third = get_collection()
+
+    assert first is second is third is fake_collection
+    fake_client_cls.assert_called_once()
+    fake_embedding_fn_cls.assert_called_once()
+
+
+def test_get_collection_bypasses_cache_when_given_explicit_args(fake_embedding_function, tmp_path):
+    import chromadb
+
+    client_a = chromadb.PersistentClient(path=str(tmp_path / "a"))
+    client_b = chromadb.PersistentClient(path=str(tmp_path / "b"))
+
+    collection_a = get_collection(client=client_a, embedding_function=fake_embedding_function)
+    collection_b = get_collection(client=client_b, embedding_function=fake_embedding_function)
+
+    assert collection_a is not collection_b
 
 
 def test_build_vectorstore_is_idempotent(fake_embedding_function, tmp_path):
