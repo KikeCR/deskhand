@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+backend/venv/
+backend/.venv/
+*.egg-info/
+
+# Environment
+.env
+
+# Generated at runtime
+backend/vectorstore/*
+!backend/vectorstore/.gitkeep
+backend/output/*
+!backend/output/.gitkeep
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
