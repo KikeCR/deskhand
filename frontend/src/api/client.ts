@@ -2,14 +2,20 @@ import type { HireProfile, OnboardingResponse } from './types'
 
 export class ApiError extends Error {}
 
+// Empty string keeps requests relative in local dev, where Vite's dev
+// server proxies /api to the backend (see vite.config.ts). In production
+// there's no such proxy, so a deployed frontend sets VITE_API_BASE_URL to
+// the backend's absolute URL (e.g. https://deskhand-api.onrender.com).
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+
 export async function fetchSampleHires(): Promise<HireProfile[]> {
-  const res = await fetch('/api/sample-hires')
+  const res = await fetch(`${API_BASE_URL}/api/sample-hires`)
   if (!res.ok) throw new ApiError('Failed to load sample hires')
   return res.json()
 }
 
 export async function runOnboarding(hire: HireProfile): Promise<OnboardingResponse> {
-  const res = await fetch('/api/onboarding/run', {
+  const res = await fetch(`${API_BASE_URL}/api/onboarding/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(hire),

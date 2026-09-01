@@ -117,6 +117,24 @@ curl -X POST http://localhost:8000/webhook/hris \
 
 Set `WEBHOOK_SECRET` in `.env` to require every request to send a matching `X-Webhook-Secret` header; left unset, the endpoint stays open for local development.
 
+## Deployment
+
+There's no database: the only "storage" is the Chroma vectorstore, which is rebuilt from four small markdown files in about a second using the free local embedding model, so the backend can run as a fully stateless container.
+
+**Backend (Render, or any container/Python host):**
+- Root directory: `backend/`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn api:app --host 0.0.0.0 --port $PORT`
+- Environment variables: at least one of `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `KIMI_API_KEY`, plus `LLM_PROVIDERS` and, optionally, `WEBHOOK_SECRET`. See `.env.example`.
+
+**Frontend (Netlify, or any static host):**
+- Base directory: `frontend/` (also captured in `netlify.toml` at the repo root, so Netlify picks up the right base/build/publish settings automatically from the repo)
+- Build command: `npm run build`
+- Publish directory: `dist`
+- Environment variable: `VITE_API_BASE_URL` set to the deployed backend's URL (see `frontend/.env.example`). Left unset, requests stay relative, which only works in local dev behind Vite's `/api` proxy.
+
+Once both are deployed, tighten `api.py`'s CORS `allow_origins` from `*` to the frontend's actual domain.
+
 ## Example usage
 
 Both runs below are real output from this codebase (via DeepSeek, one of the configured fallback providers), for the two bundled sample hires: a remote engineer and an in-office sales hire, so the branching is visible side by side.
