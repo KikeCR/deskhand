@@ -5,6 +5,15 @@ import { HirePicker } from './HirePicker'
 import * as apiClient from '../api/client'
 import type { HireProfile } from '../api/types'
 
+vi.mock('./ui/DatePicker', () => ({
+  // HirePicker's own tests care about form orchestration, not calendar
+  // internals (that's DatePicker.test.tsx's job), so stand in with a plain
+  // labeled input that reports whatever string is typed as the ISO value.
+  DatePicker: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <input aria-label="Start date" value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}))
+
 const sampleHires: HireProfile[] = [
   {
     name: 'Priya Nakamura',
@@ -77,11 +86,43 @@ describe('HirePicker', () => {
     })
   })
 
+  it('keeps the run button disabled for a malformed start date', async () => {
+    vi.spyOn(apiClient, 'fetchSampleHires').mockResolvedValue(sampleHires)
+    const user = userEvent.setup()
+
+    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+
+    await screen.findByText('Priya Nakamura')
+    await user.click(screen.getByText('Custom hire'))
+
+    await user.type(screen.getByPlaceholderText('Jordan Reyes'), 'Alex Kim')
+    await user.type(screen.getByPlaceholderText('Support Engineer'), 'Data Analyst')
+    await user.type(screen.getByPlaceholderText('Engineering'), 'Data')
+    await user.type(screen.getByLabelText('Start date'), 'not a date')
+
+    expect(screen.getByRole('button', { name: /run onboarding/i })).toBeDisabled()
+  })
+
   it('shows an error message when sample hires fail to load', async () => {
     vi.spyOn(apiClient, 'fetchSampleHires').mockRejectedValue(new Error('network error'))
 
     render(<HirePicker onRun={vi.fn()} isRunning={false} />)
 
     expect(await screen.findByText(/could not load sample hires/i)).toBeInTheDocument()
+  })
+
+  it('retries loading sample hires when Retry is clicked', async () => {
+    const fetchSpy = vi.spyOn(apiClient, 'fetchSampleHires')
+    fetchSpy.mockRejectedValueOnce(new Error('network error'))
+    fetchSpy.mockResolvedValueOnce(sampleHires)
+    const user = userEvent.setup()
+
+    render(<HirePicker onRun={vi.fn()} isRunning={false} />)
+
+    await screen.findByText(/could not load sample hires/i)
+    await user.click(screen.getByRole('button', { name: /retry/i }))
+
+    await screen.findByText('Priya Nakamura')
+    expect(screen.queryByText(/could not load sample hires/i)).not.toBeInTheDocument()
   })
 })

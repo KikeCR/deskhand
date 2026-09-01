@@ -2,7 +2,7 @@
 
 This is plain Python, not an LLM call. Which IT/equipment steps and which
 tool-access steps a new hire needs is a business rule, not a judgment
-call — leaving it to an LLM's discretion risks silently inconsistent
+call, and leaving it to an LLM's discretion risks silently inconsistent
 results between runs. Keeping it as code also makes the branching
 testable and gives the rest of the pipeline a structured, auditable
 explanation of *why* each step was included.

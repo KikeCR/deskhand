@@ -43,7 +43,8 @@ def build_research_task(agent: Agent, hire: dict, decision: DecisionResult, inta
             "- Any benefits or policy details specific to this hire's situation\n\n"
             "For each finding, report the excerpt and which source "
             "document it came from. Do not state a policy detail unless "
-            "you found it via the tool."
+            "you found it via the tool. Never use an em dash (the — "
+            "character); use a comma, period, or regular hyphen instead."
         ),
         expected_output=(
             "A list of grounded findings, each with the excerpt and its "

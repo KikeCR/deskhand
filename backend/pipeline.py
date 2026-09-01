@@ -1,8 +1,8 @@
 """Trigger-agnostic core of DeskHand: run_onboarding(hire) -> OnboardingResult.
 
 This is the one function every entry point (CLI, HTTP API, and eventually
-a webhook/n8n trigger) calls. Keeping it here — decoupled from argparse or
-FastAPI — means adding a new trigger is a matter of calling this function,
+a webhook/n8n trigger) calls. Keeping it here, decoupled from argparse or
+FastAPI, means adding a new trigger is a matter of calling this function,
 not duplicating pipeline logic.
 """
 

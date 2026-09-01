@@ -69,3 +69,61 @@ def test_run_onboarding_branches_differently_for_the_two_sample_hires(
     assert remote_decision["location_track"] != sales_decision["location_track"]
     assert remote_decision["dept_track"] != sales_decision["dept_track"]
     assert remote_decision["location_steps"] != sales_decision["location_steps"]
+
+
+HRIS_PAYLOAD = {
+    "event": "employee.hired",
+    "employee": {
+        "full_name": "Jordan Reyes",
+        "job_title": "Support Engineer",
+        "team": "Engineering",
+        "work_location": "Work From Home",
+        "hire_date": "2026-10-01",
+    },
+}
+
+
+def test_webhook_normalizes_hris_payload_and_runs_onboarding(monkeypatch):
+    monkeypatch.delenv("WEBHOOK_SECRET", raising=False)
+    monkeypatch.setattr(api, "run_onboarding", _fake_run_onboarding)
+    client = TestClient(api.app)
+
+    response = client.post("/webhook/hris", json=HRIS_PAYLOAD)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["hire"]["name"] == "Jordan Reyes"
+    assert body["hire"]["department"] == "Engineering"
+    assert body["decision"]["location_track"] == "remote"
+
+
+def test_webhook_is_open_when_no_secret_is_configured(monkeypatch):
+    monkeypatch.delenv("WEBHOOK_SECRET", raising=False)
+    monkeypatch.setattr(api, "run_onboarding", _fake_run_onboarding)
+    client = TestClient(api.app)
+
+    response = client.post("/webhook/hris", json=HRIS_PAYLOAD)
+
+    assert response.status_code == 200
+
+
+def test_webhook_rejects_missing_secret_when_configured(monkeypatch):
+    monkeypatch.setenv("WEBHOOK_SECRET", "expected-secret")
+    monkeypatch.setattr(api, "run_onboarding", _fake_run_onboarding)
+    client = TestClient(api.app)
+
+    response = client.post("/webhook/hris", json=HRIS_PAYLOAD)
+
+    assert response.status_code == 401
+
+
+def test_webhook_accepts_matching_secret(monkeypatch):
+    monkeypatch.setenv("WEBHOOK_SECRET", "expected-secret")
+    monkeypatch.setattr(api, "run_onboarding", _fake_run_onboarding)
+    client = TestClient(api.app)
+
+    response = client.post(
+        "/webhook/hris", json=HRIS_PAYLOAD, headers={"X-Webhook-Secret": "expected-secret"}
+    )
+
+    assert response.status_code == 200

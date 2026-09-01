@@ -11,7 +11,7 @@ A lot of "AI automation" job descriptions boil down to the same shape: pull stru
 - A **deterministic decision engine** (plain Python, not an LLM call) branches the checklist by location and department, and the branching is fully visible in the output.
 - A small **FastAPI + React UI** turns the CLI script into something a recruiter can actually click through.
 
-It's a portfolio piece, so the "company," "employees," and documents are all mock data — but the pipeline, the branching logic, and the test suites are real.
+It's a portfolio piece, so the "company," "employees," and documents are all mock data, but the pipeline, the branching logic, and the test suites are real.
 
 ## Architecture
 
@@ -82,7 +82,7 @@ DEEPSEEK_API_KEY=sk-...
 KIMI_API_KEY=sk-...
 ```
 
-See `.env.example` for the full list of variables. RAG embeddings run on a free local model (see [Design decisions](#design-decisions)), so none of this affects retrieval — it's only for the three agents' chat calls.
+See `.env.example` for the full list of variables. RAG embeddings run on a free local model (see [Design decisions](#design-decisions)), so none of this affects retrieval: it's only for the three agents' chat calls.
 
 ### CLI usage
 
@@ -94,13 +94,36 @@ python run.py --name "Jordan Reyes" --role "Support Engineer" \
   --department Engineering --location remote --start-date 2026-10-01
 ```
 
+### Webhook / n8n trigger
+
+`POST /webhook/hris` is a second entry point alongside the CLI and the UI's `/api/onboarding/run`, built to demonstrate the actual pattern: a real HRIS or an n8n workflow will never send a payload shaped exactly like our internal hire dict, so the webhook accepts a deliberately different, more realistic external shape and normalizes it before calling the same `pipeline.run_onboarding()` everything else uses:
+
+```bash
+curl -X POST http://localhost:8000/webhook/hris \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "employee.hired",
+    "employee": {
+      "full_name": "Jordan Reyes",
+      "job_title": "Support Engineer",
+      "team": "Engineering",
+      "work_location": "Work From Home",
+      "hire_date": "2026-10-01"
+    }
+  }'
+```
+
+`webhook.py` maps `full_name -> name`, `job_title -> role`, `team -> department`, and normalizes free-text `work_location` values ("Work From Home," "On-Site," "HQ," etc.) into the `remote`/`in_office` tracks the decision engine expects. In an n8n workflow, this is just an HTTP Request node pointed at that URL with the HRIS's webhook payload as the body.
+
+Set `WEBHOOK_SECRET` in `.env` to require every request to send a matching `X-Webhook-Secret` header; left unset, the endpoint stays open for local development.
+
 ## Example usage
 
-Both runs below are real output from this codebase (via DeepSeek, one of the configured fallback providers), for the two bundled sample hires — a remote engineer and an in-office sales hire — so the branching is visible side by side.
+Both runs below are real output from this codebase (via DeepSeek, one of the configured fallback providers), for the two bundled sample hires: a remote engineer and an in-office sales hire, so the branching is visible side by side.
 
 ### Remote engineer
 
-Input: `data/sample_hires/remote_engineer.json` — Priya Nakamura, Software Engineer II, Engineering, remote.
+Input: `data/sample_hires/remote_engineer.json`, Priya Nakamura, Software Engineer II, Engineering, remote.
 
 ```markdown
 # Week 1 Onboarding Checklist
@@ -146,7 +169,7 @@ Input: `data/sample_hires/remote_engineer.json` — Priya Nakamura, Software Eng
 
 ### In-office sales hire
 
-Input: `data/sample_hires/inoffice_sales.json` — Marcus Delgado, Account Executive, Sales, in-office.
+Input: `data/sample_hires/inoffice_sales.json`, Marcus Delgado, Account Executive, Sales, in-office.
 
 ```markdown
 # Week 1 Onboarding Checklist
@@ -202,13 +225,13 @@ Notice the IT/equipment and tool-access sections are completely different betwee
 
 **Why local embeddings but a multi-provider chat LLM.** Embeddings and chat completions are separate concerns with different constraints. Embeddings just need to place semantically similar text near each other, which a free local model (`all-MiniLM-L6-v2` via `onnxruntime`, bundled with Chroma) does perfectly well for four small policy docs, so retrieval never depends on anyone's API billing status. Chat completions (the three agents' reasoning) benefit more from a stronger hosted model, so that piece is provider-agnostic: `LLM_PROVIDERS` lists OpenAI, DeepSeek, and Kimi (Moonshot) in priority order, and `agents/crew.py::kickoff_with_fallback` retries the next provider if one fails (auth error, rate limit, out of quota), so the demo keeps working for whoever's running it regardless of which provider they happen to have credit on.
 
-**Why a FastAPI layer instead of CLI-only.** `pipeline.run_onboarding(hire) -> OnboardingResult` is the one function every entry point calls. `run.py` and `api.py` are both thin wrappers around it — argparse on one side, pydantic request/response models on the other — so the actual pipeline logic is never duplicated. This also means a future n8n workflow or webhook trigger is a small addition (call the same function from a new handler), not a rewrite. The FastAPI layer exists mainly so the React UI has something to call, which makes the branching demo interactive instead of something you have to read off a terminal.
+**Why a FastAPI layer instead of CLI-only.** `pipeline.run_onboarding(hire) -> OnboardingResult` is the one function every entry point calls. `run.py`, `api.py`'s UI-facing route, and the `/webhook/hris` trigger are all thin wrappers around it (argparse, pydantic models, and a payload-normalizing adapter, respectively), so the actual pipeline logic is never duplicated. Adding the webhook trigger was a ~70-line addition (a pydantic model for the external shape, a normalization function, an auth check), not a rewrite, which is the point of keeping the core decoupled from any one trigger. The FastAPI layer also exists so the React UI has something to call, which makes the branching demo interactive instead of something you have to read off a terminal.
 
 ## Limitations / what I'd add next
 
 - **HR system integration.** The "HR system" is two JSON files. A real version would pull from Workday, BambooHR, or similar via their API.
 - **Delivery.** The checklist is written to a markdown file and returned over HTTP; it isn't emailed or posted to Slack. Wiring up an email/Slack delivery step would be a natural next agent or task.
-- **Trigger.** `run_onboarding()` is called from a CLI and a REST endpoint today. An n8n workflow (HR system webhook → DeskHand → Slack) or a native webhook receiver would be the production trigger.
+- **Webhook auth in production.** `/webhook/hris` supports a shared-secret header (`WEBHOOK_SECRET`), which is adequate for a demo but not for a real deployment; a production version would want HMAC signature verification (matching whatever the real HRIS signs its webhooks with) instead of a static shared secret.
 - **Synchronous execution.** A crew run takes roughly 15-40 seconds and the API blocks for the whole thing. A production version would queue the run and stream progress (or poll a job status endpoint) instead.
 - **Rule coverage.** The decision engine only has rules for two departments (engineering, sales); anything else falls back to a generic step list. Real coverage would need a rule (or a config-driven table) per department.
 
@@ -216,7 +239,7 @@ Notice the IT/equipment and tool-access sections are completely different betwee
 
 **Backend:** Python, CrewAI, Chroma (local vector store), `onnxruntime` (local embeddings), FastAPI, pydantic, pytest, `python-dotenv`.
 
-**LLM providers:** OpenAI, DeepSeek, Kimi (Moonshot) — configurable, with automatic fallback.
+**LLM providers:** OpenAI, DeepSeek, Kimi (Moonshot), configurable, with automatic fallback.
 
 **Frontend:** React, TypeScript, Vite, Tailwind CSS v4, `class-variance-authority`, `react-markdown`, Vitest, Testing Library.
 

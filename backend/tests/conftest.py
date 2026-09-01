@@ -3,7 +3,7 @@
 No test in this suite makes a real OpenAI API call. Embeddings are faked
 deterministically and the crew's LLM calls are monkeypatched out wherever
 they'd otherwise run, so `pytest` works with no OPENAI_API_KEY set and no
-network access — important for a repo recruiters clone and run CI on.
+network access, which matters for a repo recruiters clone and run CI on.
 """
 
 from __future__ import annotations

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Buildings, House, UserCircle } from '@phosphor-icons/react'
+import { Buildings, CaretDown, House, UserCircle } from '@phosphor-icons/react'
 import { fetchSampleHires } from '../api/client'
 import type { HireProfile } from '../api/types'
 import { Button } from './ui/Button'
 import { Card, CardContent } from './ui/Card'
+import { DatePicker } from './ui/DatePicker'
 import { cn } from '../lib/cn'
 
 const EMPTY_CUSTOM_HIRE: HireProfile = {
@@ -13,6 +14,8 @@ const EMPTY_CUSTOM_HIRE: HireProfile = {
   location: 'remote',
   start_date: '',
 }
+
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 interface HirePickerProps {
   onRun: (hire: HireProfile) => void
@@ -25,13 +28,18 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
   const [selectedName, setSelectedName] = useState<string | 'custom' | null>(null)
   const [customHire, setCustomHire] = useState<HireProfile>(EMPTY_CUSTOM_HIRE)
 
-  useEffect(() => {
+  function loadSampleHires() {
+    setLoadError(false)
     fetchSampleHires()
       .then((hires) => {
         setSampleHires(hires)
         setSelectedName(hires[0]?.name ?? 'custom')
       })
       .catch(() => setLoadError(true))
+  }
+
+  useEffect(() => {
+    loadSampleHires()
   }, [])
 
   const selectedHire =
@@ -39,7 +47,11 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
       ? customHire
       : (sampleHires.find((h) => h.name === selectedName) ?? null)
 
-  const isCustomValid = Object.values(customHire).every((v) => v.trim().length > 0)
+  const isCustomValid =
+    customHire.name.trim().length > 0 &&
+    customHire.role.trim().length > 0 &&
+    customHire.department.trim().length > 0 &&
+    ISO_DATE_PATTERN.test(customHire.start_date)
   const canRun = selectedName === 'custom' ? isCustomValid : selectedHire !== null
 
   return (
@@ -53,9 +65,14 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
         </div>
 
         {loadError && (
-          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            Could not load sample hires. Is the backend running?
-          </p>
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/10 px-3 py-2">
+            <p className="text-sm text-destructive">
+              Could not load sample hires. Is the backend running?
+            </p>
+            <Button variant="ghost" size="sm" onClick={loadSampleHires}>
+              Retry
+            </Button>
+          </div>
         )}
 
         <div className="flex flex-col gap-2">
@@ -127,21 +144,26 @@ export function HirePicker({ onRun, isRunning }: HirePickerProps) {
               />
             </Field>
             <Field label="Location">
-              <select
-                className={inputClass}
-                value={customHire.location}
-                onChange={(e) => setCustomHire({ ...customHire, location: e.target.value })}
-              >
-                <option value="remote">Remote</option>
-                <option value="in_office">In-office</option>
-              </select>
+              <div className="relative">
+                <select
+                  className={cn(inputClass, 'w-full appearance-none pr-9')}
+                  value={customHire.location}
+                  onChange={(e) => setCustomHire({ ...customHire, location: e.target.value })}
+                >
+                  <option value="remote">Remote</option>
+                  <option value="in_office">In-office</option>
+                </select>
+                <CaretDown
+                  size={14}
+                  weight="bold"
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                />
+              </div>
             </Field>
             <Field label="Start date">
-              <input
-                type="date"
-                className={inputClass}
+              <DatePicker
                 value={customHire.start_date}
-                onChange={(e) => setCustomHire({ ...customHire, start_date: e.target.value })}
+                onChange={(isoDate) => setCustomHire({ ...customHire, start_date: isoDate })}
               />
             </Field>
           </div>

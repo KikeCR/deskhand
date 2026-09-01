@@ -120,3 +120,13 @@
     font-family: var(--font-sans);
   }
 }
+
+/* Retheme react-day-picker to our tokens instead of its light-mode default.
+   The extra .deskhand-datepicker class (passed via DayPicker's className
+   prop) raises specificity above the library's own .rdp-root rule so this
+   wins regardless of CSS import order. */
+.rdp-root.deskhand-datepicker {
+  --rdp-accent-color: var(--color-primary);
+  --rdp-accent-background-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  color: var(--color-foreground);
+}

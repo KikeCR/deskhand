@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { ArrowRight, ClipboardText, MagnifyingGlass, UsersThree } from '@phosphor-icons/react'
 import { runOnboarding } from './api/client'
 import type { HireProfile } from './api/types'
+import { Footer } from './components/Footer'
 import { HirePicker } from './components/HirePicker'
+import { Logo } from './components/Logo'
 import { ResultsPanel, type ResultsState } from './components/ResultsPanel'
 
 const PIPELINE = [
@@ -13,8 +15,10 @@ const PIPELINE = [
 
 function App() {
   const [state, setState] = useState<ResultsState>({ status: 'idle' })
+  const [lastHire, setLastHire] = useState<HireProfile | null>(null)
 
   async function handleRun(hire: HireProfile) {
+    setLastHire(hire)
     setState({ status: 'loading' })
     try {
       const result = await runOnboarding(hire)
@@ -28,14 +32,17 @@ function App() {
   }
 
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">DeskHand</h1>
-            <p className="text-sm text-muted-foreground">
-              RAG-grounded, multi-agent onboarding automation
-            </p>
+          <div className="flex items-center gap-3">
+            <Logo />
+            <div>
+              <h1 className="text-lg font-semibold tracking-tight">DeskHand</h1>
+              <p className="text-sm text-muted-foreground">
+                RAG-grounded, multi-agent onboarding automation
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
             {PIPELINE.map(({ icon: Icon, label }, i) => (
@@ -51,12 +58,14 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-6 py-8 md:grid-cols-[360px_1fr]">
+      <main className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 items-start gap-6 px-6 py-8 md:grid-cols-[360px_1fr]">
         <div className="md:sticky md:top-8 md:self-start">
           <HirePicker onRun={handleRun} isRunning={state.status === 'loading'} />
         </div>
-        <ResultsPanel state={state} />
+        <ResultsPanel state={state} onRetry={lastHire ? () => handleRun(lastHire) : undefined} />
       </main>
+
+      <Footer />
     </div>
   )
 }
