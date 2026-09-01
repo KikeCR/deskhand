@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from crewai import LLM, Crew, CrewOutput, Process
 
 from agents.intake_agent import build_intake_agent, build_intake_task
@@ -10,11 +12,17 @@ from agents.research_agent import build_research_agent, build_research_task
 from decision.engine import DecisionResult
 from llm import build_llm_chain
 
+# Off by default: verbose mode makes every agent step pretty-print a
+# formatted panel via `rich`, which is useful when watching a run locally
+# but is pure overhead (CPU + log volume) on a deployed instance where
+# nobody is tailing the console. Opt in with CREWAI_VERBOSE=true.
+VERBOSE = os.environ.get("CREWAI_VERBOSE", "false").lower() == "true"
+
 
 def build_onboarding_crew(hire: dict, decision: DecisionResult, llm: LLM) -> Crew:
-    intake_agent = build_intake_agent(llm)
-    research_agent = build_research_agent(llm)
-    reporting_agent = build_reporting_agent(llm)
+    intake_agent = build_intake_agent(llm, verbose=VERBOSE)
+    research_agent = build_research_agent(llm, verbose=VERBOSE)
+    reporting_agent = build_reporting_agent(llm, verbose=VERBOSE)
 
     intake_task = build_intake_task(intake_agent, hire)
     research_task = build_research_task(research_agent, hire, decision, intake_task)
@@ -26,7 +34,7 @@ def build_onboarding_crew(hire: dict, decision: DecisionResult, llm: LLM) -> Cre
         agents=[intake_agent, research_agent, reporting_agent],
         tasks=[intake_task, research_task, reporting_task],
         process=Process.sequential,
-        verbose=True,
+        verbose=VERBOSE,
     )
 
 

@@ -7,7 +7,7 @@ from crewai import Agent, Task
 REQUIRED_FIELDS = ["name", "role", "department", "location", "start_date"]
 
 
-def build_intake_agent(llm: str) -> Agent:
+def build_intake_agent(llm: str, verbose: bool = False) -> Agent:
     return Agent(
         role="HR Intake Coordinator",
         goal=(
@@ -22,7 +22,7 @@ def build_intake_agent(llm: str) -> Agent:
             "information that isn't in the record."
         ),
         llm=llm,
-        verbose=True,
+        verbose=verbose,
         allow_delegation=False,
     )
 

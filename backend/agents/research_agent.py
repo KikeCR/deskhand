@@ -8,7 +8,7 @@ from decision.engine import DecisionResult
 from rag.tools import RAGSearchTool
 
 
-def build_research_agent(llm: str) -> Agent:
+def build_research_agent(llm: str, verbose: bool = False) -> Agent:
     return Agent(
         role="Onboarding Research Specialist",
         goal=(
@@ -25,7 +25,7 @@ def build_research_agent(llm: str) -> Agent:
         ),
         tools=[RAGSearchTool()],
         llm=llm,
-        verbose=True,
+        verbose=verbose,
         allow_delegation=False,
     )
 

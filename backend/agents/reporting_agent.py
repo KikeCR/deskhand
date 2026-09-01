@@ -7,7 +7,7 @@ from crewai import Agent, Task
 from decision.engine import DecisionResult
 
 
-def build_reporting_agent(llm: str) -> Agent:
+def build_reporting_agent(llm: str, verbose: bool = False) -> Agent:
     return Agent(
         role="Onboarding Report Writer",
         goal=(
@@ -21,7 +21,7 @@ def build_reporting_agent(llm: str) -> Agent:
             "the research you were given."
         ),
         llm=llm,
-        verbose=True,
+        verbose=verbose,
         allow_delegation=False,
     )
 
