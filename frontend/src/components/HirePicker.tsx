@@ -9,6 +9,14 @@ import { Card, CardContent } from './ui/Card'
 import { DatePicker } from './ui/DatePicker'
 import { cn } from '../lib/cn'
 
+// See App.tsx's RUN_FAILED_MESSAGE: this can fail for the same reason
+// (a free-tier host restarting under memory pressure), so it gets the
+// same honest, environment-aware explanation rather than a message that
+// only makes sense in local dev.
+const LOAD_ERROR_MESSAGE = import.meta.env.DEV
+  ? 'Could not load sample hires. Confirm the backend is running locally on port 8000.'
+  : 'Could not load sample hires. This demo runs on a free hosting tier with limited memory, so the backend can occasionally restart. Retrying usually works within a minute or two.'
+
 const EMPTY_CUSTOM_HIRE: HireProfile = {
   name: '',
   role: '',
@@ -71,9 +79,7 @@ export function HirePicker({ onRun, isRunning, backendStatus, onRetryBackend }: 
 
         {loadError && (
           <div className="flex items-center justify-between gap-3 rounded-lg bg-destructive/10 px-3 py-2">
-            <p className="text-sm text-destructive">
-              Could not load sample hires. Is the backend running?
-            </p>
+            <p className="text-sm text-destructive">{LOAD_ERROR_MESSAGE}</p>
             <Button variant="ghost" size="sm" onClick={loadSampleHires}>
               Retry
             </Button>

@@ -14,6 +14,14 @@ const PIPELINE = [
   { icon: UsersThree, label: 'Reporting' },
 ]
 
+// import.meta.env.DEV tells local dev (Vite's proxy, see vite.config.ts)
+// apart from the deployed site, so the two very different real causes of
+// "can't reach the API" each get an accurate message instead of one
+// generic line that only makes sense in one of the two contexts.
+const RUN_FAILED_MESSAGE = import.meta.env.DEV
+  ? 'Could not reach the onboarding API. Confirm the backend is running locally on port 8000.'
+  : "This demo runs on a free hosting tier with limited memory, so the backend can occasionally restart mid-run. Click \"Try again\", it usually recovers within a minute or two. Running the project locally (see the README) does not have this limitation."
+
 function App() {
   const [state, setState] = useState<ResultsState>({ status: 'idle' })
   const [lastHire, setLastHire] = useState<HireProfile | null>(null)
@@ -26,10 +34,7 @@ function App() {
       const result = await runOnboarding(hire)
       setState({ status: 'success', result })
     } catch {
-      setState({
-        status: 'error',
-        message: 'Could not reach the onboarding API. Confirm the backend is running on port 8000.',
-      })
+      setState({ status: 'error', message: RUN_FAILED_MESSAGE })
     }
   }
 
