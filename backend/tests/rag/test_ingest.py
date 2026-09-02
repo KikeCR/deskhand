@@ -1,21 +1,13 @@
 from unittest.mock import MagicMock
 
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+import pytest
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction, ONNXMiniLM_L6_V2
 
 import rag.ingest as ingest_module
 from rag.ingest import build_vectorstore, chunk_markdown, get_collection, load_and_chunk_docs
 
 
-def test_default_embedding_function_points_at_the_vendored_model():
-    """Regression test: chromadb's DefaultEmbeddingFunction downloads its
-    model to Path.home()/.cache/... on first use, which caused a real
-    crash loop in production (a fresh Render instance whose disk didn't
-    survive a restart re-downloaded the ~80MB model every time, each
-    download blocking a request for minutes). The model is vendored into
-    the repo instead; this guards against that redirect quietly reverting.
-    """
-    assert DefaultEmbeddingFunction.DOWNLOAD_PATH == ingest_module._VENDORED_MODEL_DIR
-
+def test_vendored_model_files_are_present():
     vendored_onnx_dir = ingest_module._VENDORED_MODEL_DIR / "onnx"
     for filename in (
         "config.json",
@@ -26,6 +18,34 @@ def test_default_embedding_function_points_at_the_vendored_model():
         "vocab.txt",
     ):
         assert (vendored_onnx_dir / filename).exists(), f"missing vendored file: {filename}"
+
+
+def test_default_embedding_function_never_attempts_a_download(monkeypatch):
+    """Regression test for a real production incident: chromadb's
+    DefaultEmbeddingFunction.__call__ hardcodes `ONNXMiniLM_L6_V2()(input)`,
+    a fresh instance of a *different* class constructed by direct
+    reference rather than via `self`. DOWNLOAD_PATH must be patched on
+    ONNXMiniLM_L6_V2 itself for the vendored model to actually be used;
+    patching DefaultEmbeddingFunction.DOWNLOAD_PATH (an earlier, wrong fix)
+    silently does nothing, because nothing reads it. This exercises the
+    real DefaultEmbeddingFunction() call path end to end and fails loudly
+    if it ever tries to hit the network again, instead of a test that only
+    checks an attribute nothing actually consults.
+    """
+    assert ONNXMiniLM_L6_V2.DOWNLOAD_PATH == ingest_module._VENDORED_MODEL_DIR
+
+    def _fail_if_called(*args, **kwargs):
+        raise AssertionError(
+            "DefaultEmbeddingFunction attempted a network download instead "
+            "of using the vendored model files"
+        )
+
+    monkeypatch.setattr(ONNXMiniLM_L6_V2, "_download", _fail_if_called)
+
+    vector = DefaultEmbeddingFunction()(["a test sentence"])
+
+    assert len(vector) == 1
+    assert len(vector[0]) > 0
 
 
 def test_chunk_markdown_splits_on_h2_headers():

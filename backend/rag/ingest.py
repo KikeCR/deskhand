@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction, ONNXMiniLM_L6_V2
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "mock_docs"
 VECTORSTORE_DIR = Path(__file__).resolve().parent.parent / "vectorstore"
@@ -18,11 +18,20 @@ COLLECTION_NAME = "company_docs"
 # production, a fresh instance re-downloaded the model on every restart,
 # each one blocking a request for minutes and likely triggering the next
 # restart before the download even finished. The model files are vendored
-# into the repo instead (see data/onnx_model/), and pointing DOWNLOAD_PATH
-# there removes the network dependency entirely, independent of whatever
-# the host's disk-persistence behavior actually is.
+# into the repo instead (see data/onnx_model/).
+#
+# DefaultEmbeddingFunction.__call__ hardcodes `ONNXMiniLM_L6_V2()(input)`,
+# constructing a fresh instance of that *other* class directly rather than
+# via `self`, so DOWNLOAD_PATH must be patched on ONNXMiniLM_L6_V2 itself,
+# not on DefaultEmbeddingFunction. An earlier version of this patched the
+# wrong class: it looked like it worked locally only because this
+# machine's persistent vectorstore already had every chunk embedded from
+# prior local runs, so the embedding function was never actually called to
+# expose the mistake, and separately because this machine's OS-default
+# cache path (~/.cache/chroma/...) already happened to have the real
+# model files downloaded from earlier testing.
 _VENDORED_MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "onnx_model" / "all-MiniLM-L6-v2"
-DefaultEmbeddingFunction.DOWNLOAD_PATH = _VENDORED_MODEL_DIR
+ONNXMiniLM_L6_V2.DOWNLOAD_PATH = _VENDORED_MODEL_DIR
 
 _cached_collection = None
 
