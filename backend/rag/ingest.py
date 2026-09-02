@@ -33,6 +33,46 @@ COLLECTION_NAME = "company_docs"
 _VENDORED_MODEL_DIR = Path(__file__).resolve().parent.parent / "data" / "onnx_model" / "all-MiniLM-L6-v2"
 ONNXMiniLM_L6_V2.DOWNLOAD_PATH = _VENDORED_MODEL_DIR
 
+# TEMPORARY diagnostic: this has broken twice in production despite
+# working locally both times, so print ground truth from the actual
+# deploy at startup instead of continuing to guess from local behavior.
+# Remove once confirmed fixed on Render.
+print(f"[deskhand-diag] __file__ = {__file__}", flush=True)
+print(f"[deskhand-diag] _VENDORED_MODEL_DIR = {_VENDORED_MODEL_DIR}", flush=True)
+print(f"[deskhand-diag] _VENDORED_MODEL_DIR.exists() = {_VENDORED_MODEL_DIR.exists()}", flush=True)
+print(
+    f"[deskhand-diag] vendored onnx/ dir exists = {(_VENDORED_MODEL_DIR / 'onnx').exists()}",
+    flush=True,
+)
+if (_VENDORED_MODEL_DIR / "onnx").exists():
+    print(
+        f"[deskhand-diag] vendored onnx/ contents = {sorted(p.name for p in (_VENDORED_MODEL_DIR / 'onnx').iterdir())}",
+        flush=True,
+    )
+print(f"[deskhand-diag] ONNXMiniLM_L6_V2.DOWNLOAD_PATH (post-patch) = {ONNXMiniLM_L6_V2.DOWNLOAD_PATH}", flush=True)
+print(f"[deskhand-diag] id(ONNXMiniLM_L6_V2) = {id(ONNXMiniLM_L6_V2)}", flush=True)
+
+# Instrument the exact failure point: capture ground truth at the moment
+# a real download would fire, not just at import time. If this never
+# prints, the process never reaches this method at all (fails/hangs
+# earlier). If it prints the vendored path but downloads anyway, the
+# exists-check inside chromadb itself is failing for some other reason.
+# If it prints the original ~/.cache path, the patch above isn't applying
+# to whatever instance is actually running here.
+_original_download = ONNXMiniLM_L6_V2._download
+
+
+def _diagnostic_download(self, *args, **kwargs):
+    print(
+        f"[deskhand-diag] _download() invoked! self.DOWNLOAD_PATH={self.DOWNLOAD_PATH} "
+        f"type(self).DOWNLOAD_PATH={type(self).DOWNLOAD_PATH} id(type(self))={id(type(self))}",
+        flush=True,
+    )
+    return _original_download(self, *args, **kwargs)
+
+
+ONNXMiniLM_L6_V2._download = _diagnostic_download
+
 _cached_collection = None
 
 
