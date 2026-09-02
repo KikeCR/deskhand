@@ -1,7 +1,31 @@
 from unittest.mock import MagicMock
 
+from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+
 import rag.ingest as ingest_module
 from rag.ingest import build_vectorstore, chunk_markdown, get_collection, load_and_chunk_docs
+
+
+def test_default_embedding_function_points_at_the_vendored_model():
+    """Regression test: chromadb's DefaultEmbeddingFunction downloads its
+    model to Path.home()/.cache/... on first use, which caused a real
+    crash loop in production (a fresh Render instance whose disk didn't
+    survive a restart re-downloaded the ~80MB model every time, each
+    download blocking a request for minutes). The model is vendored into
+    the repo instead; this guards against that redirect quietly reverting.
+    """
+    assert DefaultEmbeddingFunction.DOWNLOAD_PATH == ingest_module._VENDORED_MODEL_DIR
+
+    vendored_onnx_dir = ingest_module._VENDORED_MODEL_DIR / "onnx"
+    for filename in (
+        "config.json",
+        "model.onnx",
+        "special_tokens_map.json",
+        "tokenizer_config.json",
+        "tokenizer.json",
+        "vocab.txt",
+    ):
+        assert (vendored_onnx_dir / filename).exists(), f"missing vendored file: {filename}"
 
 
 def test_chunk_markdown_splits_on_h2_headers():
