@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import re
+
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from rag.retriever import query as rag_query
+
+# ingest.chunk_markdown keeps each chunk's "## Header" line as a prefix so
+# the chunk is self-describing once retrieved out of context. That raw "##"
+# syntax is only useful as a section label for whoever reads this tool's
+# output; agents tend to quote it verbatim into their findings, which then
+# shows up as stray "##" characters in front of a user reading the final
+# checklist. Strip the markdown header markers here, at the tool boundary,
+# so the label survives but the raw syntax doesn't leak downstream.
+_HEADER_MARKER = re.compile(r"(?m)^#+\s*")
 
 
 class RAGSearchInput(BaseModel):
@@ -30,5 +41,6 @@ class RAGSearchTool(BaseTool):
 
         formatted = []
         for r in results:
-            formatted.append(f"[Source: {r['source']}]\n{r['content']}")
+            content = _HEADER_MARKER.sub("", r["content"])
+            formatted.append(f"[Source: {r['source']}]\n{content}")
         return "\n\n---\n\n".join(formatted)
