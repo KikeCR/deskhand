@@ -15,33 +15,16 @@ It's a portfolio piece, so the "company," "employees," and documents are all moc
 
 ## Architecture
 
-```
-                    ┌─────────────────────┐
-   New hire  ────▶  │   Intake Agent      │  validates & normalizes
-   profile          │                     │  the hire's profile
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐       ┌─────────────────────┐
-                    │  Decision Engine     │──────▶│  Chroma vectorstore  │
-                    │  (plain Python)      │       │  (company docs)      │
-                    │  location + dept     │       └──────────┬───────────┘
-                    │  branch + rationale  │                  │
-                    └──────────┬──────────┘        RAGSearchTool
-                               │                              │
-                    ┌──────────▼──────────┐                  │
-                    │  Research Agent      │◀─────────────────┘
-                    │  queries the RAG     │
-                    │  vectorstore         │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  Reporting Agent      │  writes the final
-                    │                       │  markdown checklist
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │  FastAPI  /  CLI      │  → React UI or run.py
-                    └───────────────────────┘
+```mermaid
+flowchart TD
+    hire["New hire profile"] --> intake["Intake Agent<br/>validates & normalizes the hire's profile"]
+    intake --> decision["Decision Engine (plain Python)<br/>location + dept branch + rationale"]
+    decision --> vectorstore["Chroma vectorstore<br/>(company docs)"]
+    decision --> research["Research Agent<br/>queries the RAG vectorstore"]
+    vectorstore -- RAGSearchTool --> research
+    research --> reporting["Reporting Agent<br/>writes the final markdown checklist"]
+    reporting --> api["FastAPI / CLI"]
+    api --> ui["React UI or run.py"]
 ```
 
 The Decision Engine sits **outside** the CrewAI agents, between Intake and Research. It reads the hire's `location` and `department` and returns a structured result: which track matched, which steps that track adds, and a plain-English explanation of why. That result is handed to the Research and Reporting agents as guidance, and is also rendered directly (not paraphrased by an LLM) in the final checklist and the API response, so the branching is guaranteed visible no matter how the agents phrase things.
