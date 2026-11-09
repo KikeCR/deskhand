@@ -12,14 +12,6 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "mock_docs"
 VECTORSTORE_DIR = Path(__file__).resolve().parent.parent / "vectorstore"
 COLLECTION_NAME = "company_docs"
 
-# chromadb's DefaultEmbeddingFunction downloads its ~80MB model to
-# Path.home()/.cache/chroma/onnx_models/... on first use. On a host whose
-# disk doesn't survive a restart, that's a real crash loop: confirmed in
-# production, a fresh instance re-downloaded the model on every restart,
-# each one blocking a request for minutes and likely triggering the next
-# restart before the download even finished. The model files are vendored
-# into the repo instead (see data/onnx_model/).
-#
 # DefaultEmbeddingFunction.__call__ hardcodes `ONNXMiniLM_L6_V2()(input)`,
 # constructing a fresh instance of that *other* class directly rather than
 # via `self`, so DOWNLOAD_PATH must be patched on ONNXMiniLM_L6_V2 itself,
